@@ -1,0 +1,453 @@
+*hugo-cms.txt*    Manage Hugo-based sites from Neovim
+
+                                                                     *hugo-cms*
+
+              hugo-cms.nvim — Hugo CMS workflow inside Neovim
+
+Author:  Tom Schimana
+License: MIT
+
+==============================================================================
+CONTENTS                                                     *hugo-cms-contents*
+
+    1. Introduction .......................... |hugo-cms-introduction|
+    2. Requirements .......................... |hugo-cms-requirements|
+    3. Installation .......................... |hugo-cms-installation|
+    4. Commands .............................. |hugo-cms-commands|
+         :Hugo site .......................... |hugo-cms-site|
+         :Hugo new ........................... |hugo-cms-new|
+         :Hugo open .......................... |hugo-cms-open|
+         :Hugo resume ........................ |hugo-cms-resume|
+         :Hugo search ........................ |hugo-cms-search|
+         :Hugo rename ........................ |hugo-cms-rename|
+         :Hugo delete ........................ |hugo-cms-delete|
+         :Hugo draft ......................... |hugo-cms-draft|
+         :Hugo tags .......................... |hugo-cms-tags|
+         :Hugo categories .................... |hugo-cms-categories|
+         :Hugo media ......................... |hugo-cms-media|
+         :Hugo filebrowser ................... |hugo-cms-filebrowser|
+         :Hugo preview ....................... |hugo-cms-preview|
+         :Hugo publish ....................... |hugo-cms-publish|
+    5. Keymaps ............................... |hugo-cms-keymaps|
+    6. Archetype patterns .................... |hugo-cms-patterns|
+    7. Storage ............................... |hugo-cms-storage|
+
+==============================================================================
+1. INTRODUCTION                                          *hugo-cms-introduction*
+
+hugo-cms.nvim is a Neovim plugin for managing Hugo (https://gohugo.io)
+static sites. It handles the full content lifecycle — register sites,
+create / edit / delete posts, insert media, preview, and publish —
+across any number of sites, content types, and languages.
+
+All functionality is exposed through a single |:Hugo| command with
+subcommands (analogous to the `hugo` CLI). Tab completion is available.
+
+==============================================================================
+2. REQUIREMENTS                                          *hugo-cms-requirements*
+
+- Neovim 0.10 or newer (uses `vim.system`, `vim.fs`, `vim.json`)
+- folke/snacks.nvim — REQUIRED. Every picker and prompt goes through
+  `snacks.picker` / `snacks.input`. Without snacks, `setup()` exits
+  with an error.
+- LazyVim — REQUIRED only for |:Hugo search|, which delegates to
+  `LazyVim.pick.open("live_grep", ...)`. All other commands work
+  without LazyVim (but do need snacks).
+- `hugo` available in $PATH.
+- `ripgrep` (`rg`) available in $PATH — required for |:Hugo search|
+  (same requirement as LazyVim's own `<leader>sg`). Also used by
+  |:Hugo media| for the rename/delete reference scan.
+- `open` (macOS) or `xdg-open` (Linux) for file-manager and browser
+  integration.
+- Linux or macOS. Windows is not supported.
+
+==============================================================================
+3. INSTALLATION                                          *hugo-cms-installation*
+
+With lazy.nvim:
+>
+    {
+      "you/hugo-cms.nvim",
+      dependencies = { "folke/snacks.nvim" },
+      cmd = "Hugo",
+      opts = {},
+    }
+<
+
+A ready-to-copy spec with suggested keymaps is bundled as
+`lazyvim-spec.lua` in the repo root for local development with
+`dir = "..."`.
+
+The plugin does NOT set keymaps itself — change the prefix or individual
+bindings freely in your own spec. See |hugo-cms-keymaps| for the
+suggested set.
+
+`setup()` is optional: the `:Hugo` user command is registered
+unconditionally by `plugin/hugo-cms.lua` so the plugin works even
+without an explicit setup call. Calling `setup()` validates that
+snacks.nvim is present.
+
+==============================================================================
+4. COMMANDS                                              *hugo-cms-commands*
+                                                         *:Hugo*
+
+All functionality is exposed through a single `:Hugo` command with
+subcommands. Subcommand names and, where applicable, their arguments
+offer `<Tab>` completion.
+
+------------------------------------------------------------------------------
+:Hugo site [action]                                           *hugo-cms-site*
+
+Manages the plugin's registry of Hugo sites. The plugin does NOT
+create or delete sites on disk — it only tracks which existing sites
+Neovim should know about. To scaffold a fresh Hugo site, run `hugo new
+site <name>` in a shell; come back here once a config file exists.
+
+Called without an argument, `:Hugo site` opens a picker with the
+following actions; direct invocation is also supported:
+
+    register    Register an EXISTING Hugo site with the plugin. Prompts
+                for a path and a display name. The path is validated as
+                a Hugo site root: any of `hugo.{toml,yaml,yml,json}`,
+                `config.{toml,yaml,yml,json}`, or a `config/_default/`
+                directory with one of those files is accepted. The
+                first site registered becomes active.
+    switch      Picker to change the active site.
+    unregister  Picker + confirmation. Drops the entry from the
+                plugin's registry. Site files on disk are not touched.
+
+The registry is persisted as JSON — see |hugo-cms-storage|.
+
+------------------------------------------------------------------------------
+:Hugo new                                                      *hugo-cms-new*
+
+Creates content from an archetype. Each archetype has exactly one saved
+*path pattern* per site — a prefix like `blog/{year}/` that is expanded
+and prefilled when you create a new post, so you only type the slug at
+the end.
+
+First time you use an archetype (or on a fresh install):
+
+  1. Pick the archetype (scanned from `archetypes/`).
+  2. You are asked for the path pattern — the prefix for every post of
+     this archetype. The default `posts/{year}/` is prefilled (Hugo's
+     conventional section name, used by most themes); edit it to match
+     your site, e.g. `blog/{year}/` or `posts/{year}/{month}/`. Saved
+     on confirm.
+  3. Title prompt: the human-readable title of the post. Leave empty to
+     skip and let Hugo's archetype decide.
+  4. Path prompt: prefilled with the expanded pattern plus a URL-safe
+     slug derived from the title. Edit the slug freely — it is
+     independent from the title.
+
+Subsequent uses skip step 2.
+
+Slug derivation handles German umlauts (`ä→ae`, `ö→oe`, `ü→ue`,
+`ß→ss`) and common Latin diacritics. After `hugo new`, the plugin
+rewrites the `title:` field in the frontmatter with the typed title so
+no manual fix-up is required. For bundle archetypes with multiple
+language files, the title is applied to every language variant.
+
+Supported placeholders in patterns:
+
+    {year}     current year, YYYY
+    {month}    current month, MM
+    {day}      current day, DD
+
+No `{slug}` placeholder — the slug is what you type into the path
+prompt after the prefix.
+
+Change a saved pattern via |:Hugo site| → "Edit archetype pattern".
+
+------------------------------------------------------------------------------
+:Hugo open                                                    *hugo-cms-open*
+
+Opens a picker across every content file (every `*.md` single page and
+every `index(.lang)?.md` inside a bundle). Each language version of a
+bundle is a separate entry. Draft status and language code are shown
+inline; the title is read from the frontmatter.
+
+------------------------------------------------------------------------------
+:Hugo resume                                                  *hugo-cms-resume*
+
+Reopens the last content page you had open for the active site. The
+plugin tracks every buffer inside `<site>/content/**` on `BufEnter`
+and persists the absolute path in the site registry, so this works
+across Neovim restarts. Within a running session, `<C-^>` still
+toggles between the last two buffers regardless of type — `resume` is
+scoped to content pages of the active site.
+
+If no previous page has been recorded yet, the command is a no-op
+with a notification. If the stored path no longer exists (file was
+deleted or moved outside the plugin), a warning is shown and nothing
+is opened.
+
+------------------------------------------------------------------------------
+:Hugo search                                                  *hugo-cms-search*
+
+Live full-text search over the active site's `content/` tree. Delegates
+to `LazyVim.pick.open("live_grep", { cwd = <site>/content })`, so it
+uses whatever picker LazyVim is configured with (snacks, Telescope,
+fzf-lua) — behaves identically to LazyVim's own `<leader>sg`, just
+scoped to the content directory. Requires `ripgrep`. Use |:Hugo open|
+to browse by title, |:Hugo search| when you remember a phrase from the
+body.
+
+------------------------------------------------------------------------------
+:Hugo rename                                                  *hugo-cms-rename*
+
+Picker + input for the new path relative to `content/`. Bundles
+(`dir/index.md`) move as a whole directory; single files move
+individually. A `.md` suffix is added automatically if omitted on
+single-file moves.
+
+------------------------------------------------------------------------------
+:Hugo delete                                                  *hugo-cms-delete*
+
+Picker over all content entries, then a confirmation. Single-file
+entries lead straight to the Yes/No prompt. Bundle-language entries
+(e.g. `index.en.md` inside a leaf bundle) get a second picker first:
+
+    Whole bundle             Deletes the bundle directory (all language
+                             files and page resources).
+    Only `index.<lang>.md`   Removes just the selected language file;
+                             keeps the bundle directory, other
+                             languages, and all assets.
+
+Use the single-language option to retire a translation without
+touching the rest of the bundle.
+
+------------------------------------------------------------------------------
+:Hugo draft                                                   *hugo-cms-draft*
+
+Toggles the `draft` field in the current buffer's frontmatter. When the
+buffer is part of a leaf bundle (`index(.lang)?.md`), the flag is
+synchronised across ALL language versions of that bundle. Supports YAML
+(`---`) and TOML (`+++`) frontmatter.
+
+------------------------------------------------------------------------------
+:Hugo tags                                                    *hugo-cms-tags*
+:Hugo categories                                              *hugo-cms-categories*
+
+Toggle the `tags` (or `categories`) frontmatter list on the current
+buffer. Opens a picker that lists every value used anywhere in the
+site: the ones already set on this page float to the top with an `[x]`
+mark, the rest follow alphabetically with `[ ]`. A `+ Create new…`
+entry at the bottom prompts for a new value.
+
+Enter toggles the highlighted entry (or creates a new one) and re-opens
+the picker so you can keep adding/removing. Press <Esc> when done —
+the final set is written to the frontmatter and synced across all
+language siblings for bundles. Nothing is written if no changes are
+made.
+
+YAML frontmatter is normalised to block form (`tags:` with indented
+`  - "…"` lines); TOML frontmatter uses inline form
+(`tags = ["…", …]`). JSON frontmatter is not supported for writes.
+
+------------------------------------------------------------------------------
+:Hugo media [action]                                          *hugo-cms-media*
+
+Media management for the active site. Called without an argument,
+opens a picker with the following actions; direct invocation is also
+supported:
+
+    import                 Copy any file from disk into the site.
+    rename                 Rename a media file in place.
+    delete                 Delete a media file (with confirm).
+    insert page            Insert `[Title]({{< relref "…" >}})` at
+                           cursor from any content page in the site.
+    insert image           Insert `![](…)` at cursor from site images.
+    insert link            Insert `[text](…)` at cursor from any file.
+    insert shortcode       Insert `{{< name >}}` (or `{{< name >}}…
+                           {{< /name >}}` for paired) at cursor.
+    cover                  Set the `cover.image` frontmatter field (+
+                           optional `cover.alt` when archetype defines
+                           it) for the active bundle.
+
+`import` uses a two-step picker:
+
+  1. Source — drill-down directory browser rooted at `$HOME`. The list
+     starts with `../` followed by subdirectories (suffixed with `/`)
+     and then files. Hidden entries are skipped.
+  2. Destination — flat picker over all directories under the site's
+     `content/`, `static/`, and `assets/` (excluding `public/`,
+     `resources/`, `themes/`, `node_modules/`, and dotfiles). If the
+     current buffer is a bundle, its directory is moved to the top of
+     the list and labelled `(current bundle)`.
+
+Name collisions on import are resolved with a `-2`, `-3` suffix. No
+automatic insert — run `insert image|link` separately for a link in
+the markdown.
+
+`rename` and `delete` pool media from the current bundle (non-recursive)
+plus `static/**` (recursive) — anything except `.md` files. Neither
+operation rewrites markdown references. After each operation a
+ripgrep scan under `content/` reports how many files still reference
+the old basename so they can be updated manually. The scan is skipped
+silently if `rg` isn't available.
+
+`insert page` uses the same page list as |:Hugo open| — every single
+page and every bundle language variant. The ref is the path relative
+to `content/` without the `.md` suffix and without the language suffix
+(Hugo resolves translations to the current page's language
+automatically). Hugo validates the ref at build time, so broken links
+surface in the build log instead of silently rotting.
+
+`insert image` uses the image pool (`.png`, `.jpg`, `.jpeg`, `.webp`,
+`.gif`, `.svg`, `.avif` — case-insensitive); bundle images use
+`./name.ext`, static images use the full `/sub/path/name.ext`.
+`insert link` uses the same pool with all non-markdown files, prompts
+for link text (default = filename).
+
+`insert shortcode` collects shortcodes from (in shadow order):
+`layouts/shortcodes/*.html`, `themes/*/layouts/shortcodes/*.html`, and
+Hugo's built-ins (figure, gist, highlight, instagram, param, ref,
+relref, tweet, vimeo, youtube). Paired shortcodes are detected by
+scanning the template for `.Inner`; the closing tag is emitted too.
+Named parameters are discovered from the template body by scanning
+for `.Get "name"` calls and inserted as empty strings — e.g. a `video`
+shortcode that reads `src` and `width` produces
+`{{< video src="" width="" >}}` with the cursor between the first pair
+of quotes. Built-ins ship with their documented params hard-coded. For
+paired shortcodes with no params the cursor lands in the body instead.
+
+`cover` requires a bundle buffer. The image is applied to ALL
+language siblings (`index.md`, `index.en.md`, …). Bundle images are
+stored as the bare filename (Hugo treats them as page resources);
+static images are stored with their full `/sub/path/name.ext`.
+
+The plugin is archetype-driven about cover metadata: it sets
+`cover.image`, and — if the current file's frontmatter already
+contains a `cover.alt` field — prompts for alt text and updates only
+the CURRENT language sibling (alt is per-language). Fields like
+`cover.relative`, `cover.caption`, `cover.hidden` are never written
+or cleared; put them in your archetype (e.g.
+`archetypes/<name>/index.md`) if you want them preseeded into every
+new post. The plugin only updates what your template established so
+it stays theme-neutral.
+
+------------------------------------------------------------------------------
+:Hugo filebrowser                                             *hugo-cms-filebrowser*
+
+Opens the system file manager (Finder on macOS, whatever `xdg-open`
+resolves to on Linux) at a useful location. If the current buffer
+lives inside the active site, its directory is opened — typically the
+bundle directory being edited. Otherwise the site root is opened.
+Windows is not supported.
+
+------------------------------------------------------------------------------
+:Hugo preview [stop]                                          *hugo-cms-preview*
+
+Runs `hugo server --buildDrafts --buildFuture --navigateToChanged` for
+the active site in a terminal split at the bottom of the screen — the
+split is both the status indicator (builds, requests, errors scroll
+live) and the kill switch. The system browser opens at the page
+corresponding to the current buffer:
+
+    content/_index.md
+        → http://localhost:1313/
+    content/posts/hello.md
+        → http://localhost:1313/posts/hello/
+    content/posts/hello/index.de.md
+        → http://localhost:1313/de/posts/hello/
+
+Buffers outside `content/` fall back to the site root. Unusual
+permalink configs and `defaultContentLanguageInSubdir` are not
+accounted for — the URL is a best-effort from the file path.
+
+Calling |:Hugo preview| again while a preview is running does NOT
+stop the server — it just opens the current buffer's page in the
+browser again, so you can jump between pages freely. Use
+`:Hugo preview stop` (or wipe the terminal buffer with `:bd`) to shut
+it down. The server is also killed on Neovim exit so no orphan
+processes survive. One preview at a time per Neovim session.
+
+------------------------------------------------------------------------------
+:Hugo publish                                                 *hugo-cms-publish*
+
+Builds the active site with `hugo` and, if the site root contains a
+`deploy.sh`, runs it. Both steps stream into a terminal split at the
+bottom so the build and deploy log are visible live.
+
+A confirmation prompt opens first, listing the exact commands that
+will run (`hugo` and, when present, `sh deploy.sh`) and the working
+directory. Default answer is No; press `y` / `1` or select Yes to
+proceed.
+
+If `hugo` exits non-zero, `deploy.sh` is NOT executed — the two steps
+are chained with `&&`. On success or failure a notify confirms the
+outcome; the terminal split stays open so the full log can be
+reviewed.
+
+==============================================================================
+5. KEYMAPS                                                   *hugo-cms-keymaps*
+
+The plugin does NOT set keymaps itself. The following are suggestions
+from the bundled `lazyvim-spec.lua`:
+>
+    <leader>hS    :Hugo site
+    <leader>hn    :Hugo new
+    <leader>ho    :Hugo open
+    <leader>hr    :Hugo resume
+    <leader>hs    :Hugo search
+    <leader>hR    :Hugo rename
+    <leader>hD    :Hugo delete
+    <leader>hd    :Hugo draft
+    <leader>ht    :Hugo tags
+    <leader>hc    :Hugo categories
+    <leader>hm    :Hugo media
+    <leader>hf    :Hugo filebrowser
+    <leader>hp    :Hugo preview
+    <leader>hP    :Hugo preview stop
+    <leader>h!    :Hugo publish
+<
+
+==============================================================================
+6. ARCHETYPE PATTERNS                                       *hugo-cms-patterns*
+
+Path patterns are stored per site in `sites.json` under the
+`archetypes` key:
+>
+    {
+      "active": "my-site",
+      "sites": {
+        "my-site": {
+          "name": "my-site",
+          "path": "/Users/you/sites/my-site",
+          "archetypes": {
+            "blog-post": "posts/{year}/"
+          }
+        }
+      }
+    }
+<
+
+Edit the file directly or let |:Hugo new| capture patterns
+automatically when you enter a path containing placeholders.
+
+==============================================================================
+7. STORAGE                                                   *hugo-cms-storage*
+
+The site registry is persisted as JSON under
+`$XDG_DATA_HOME/nvim/hugo-cms/sites.json`
+(typically `~/.local/share/nvim/hugo-cms/sites.json`):
+>
+    {
+      "active": "my-site",
+      "sites": {
+        "my-site": {
+          "name": "my-site",
+          "path": "/Users/you/sites/my-site",
+          "last_content": "/Users/you/sites/my-site/content/posts/foo.md"
+        }
+      }
+    }
+<
+
+The internal site key is derived from the display name. `last_content`
+is written by the `BufEnter` tracker used by |:Hugo resume|. Editing
+the file by hand is supported; malformed JSON is reported with an
+error.
+
+vim:tw=78:ts=8:ft=help:norl:
