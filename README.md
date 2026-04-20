@@ -55,12 +55,12 @@ to whichever plugin manager you use.
 }
 ```
 
-The plugin sets no keymaps itself — use the prefix you prefer.
+hugo-cms.nvim sets no keymaps itself — use the prefix you prefer.
 
 ## Documentation
 
 Run `:help hugo-cms` for the full reference. If it reports "not found",
-the plugin is lazy-loaded — run any `:Hugo` command once to load it.
+hugo-cms.nvim is lazy-loaded — run any `:Hugo` command once to load it.
 
 ## Commands
 
@@ -69,7 +69,7 @@ available.
 
 | Command             | Description                                     |
 |---------------------|-------------------------------------------------|
-| `:Hugo site`        | Register, switch, and unregister sites          |
+| `:Hugo site`        | Register / switch / unregister sites, edit patterns |
 | `:Hugo new`         | Create content from an archetype                |
 | `:Hugo open`        | Picker over content, all languages              |
 | `:Hugo resume`      | Reopen the last content page for the active site|
@@ -86,21 +86,53 @@ available.
 
 ## `:Hugo site`
 
-Manages the list of Hugo sites the plugin knows about. You register an
-existing site, switch between sites, and unregister when you're done.
-Files on disk are never touched.
+Manages the list of Hugo sites you've registered with hugo-cms.nvim. A
+"site" is any folder with a Hugo config (`hugo.toml`, `hugo.yaml`, or
+the older `config.toml`) in it. Register once, switch between them
+whenever. Nothing on disk is ever touched.
 
-To create a new site, run `hugo new site <name>` in a terminal first,
-then come back.
+To start a brand-new site, run `hugo new site <name>` in a terminal
+first, then come back to register it.
 
 With no argument, `:Hugo site` opens a picker. You can also call the
 subcommands directly:
 
-- `:Hugo site register` — add a site. Prompts for its path and a display
-  name. The first site registered becomes active.
+- `:Hugo site register` — add a site. Two prompts:
+
+  ```
+  Site path:    ~/sites/myblog      (your Hugo project root)
+  Display name: My Blog             (label shown in pickers)
+  ```
+
+  The first registered site becomes active.
+
 - `:Hugo site switch` — change the active site.
+
 - `:Hugo site unregister` — remove a site from the list. Your files
   stay on disk.
+
+- `:Hugo site pattern` — set or change the **path pattern** for one of
+  the site's archetypes. A path pattern decides where new posts from
+  that archetype land inside `content/`. Examples:
+
+  | Pattern                | Result for a post titled "Hello"    |
+  |------------------------|-------------------------------------|
+  | `posts/{year}/`        | `content/posts/2026/hello.md`       |
+  | `blog/{year}/{month}/` | `content/blog/2026/04/hello.md`     |
+  | `notes/`               | `content/notes/hello.md` (flat)     |
+
+  Supported placeholders (all zero-padded):
+
+  | Placeholder | Expansion          |
+  |-------------|--------------------|
+  | `{year}`    | current year, YYYY |
+  | `{month}`   | current month, MM  |
+  | `{day}`     | current day, DD    |
+
+  Patterns are saved per site and per archetype. The first time you run
+  `:Hugo new` with a given archetype, you're prompted for the pattern;
+  after that it's remembered. Run `:Hugo site pattern` to change it
+  later.
 
 Registered sites and archetype path patterns are stored at
 `$XDG_DATA_HOME/nvim/hugo-cms/sites.json` (typically
@@ -111,38 +143,76 @@ preserve your setup.
 
 All content commands operate on the active site's `content/` tree.
 
+A **bundle** (Hugo's term) is a folder with `index.md` plus related
+files — language siblings like `index.de.md`, images, attachments —
+treated as one page. A **single-file page** is just a `.md` file on
+its own. Most commands work on both; where they behave differently,
+it's called out.
+
+**Multilingual sites are supported.** Hugo stores translations as
+language-suffixed siblings (`index.de.md`, `index.fr.md`) next to the
+default-language file. hugo-cms.nvim picks that up: commands that write
+metadata (draft flag, tags, categories, cover image) sync across every
+sibling so translations stay in step, and `:Hugo rename` / `:Hugo delete`
+move or remove the whole bundle by default with an opt-out for
+per-language scope.
+
 ### `:Hugo new`
 
-Creates a post from an archetype. Pick the archetype, type a title,
-confirm the path — done.
+Creates a post from one of your archetypes. Three prompts:
 
-The path is prefilled with a saved pattern like `blog/{year}/` plus a
-slug generated from your title. You can edit the slug before confirming.
+1. **Archetype** — picker over everything in `archetypes/`. Single-file
+   archetypes (`post.md`) produce a single-file page; directory
+   archetypes (`post/` with `index.md` and siblings) produce a bundle
+   with the same layout.
+2. **Title** — plain text, e.g. `My first post`.
+3. **Path** — prefilled with the archetype's path pattern plus a slug
+   derived from your title. Edit the slug if you like before hitting
+   enter.
 
-On the very first post from a given archetype on a site, you also enter
-the path pattern itself (default `posts/{year}/`). The pattern is saved
-per site and per archetype, so later posts skip that step.
+A concrete run with the `post` archetype and title `My first post`:
 
-Supported placeholders:
+```
+Archetype: post
+Title:     My first post
+Path:      posts/2026/my-first-post
+```
 
-| Placeholder | Expansion           |
-|-------------|---------------------|
-| `{year}`    | current year, YYYY  |
-| `{month}`   | current month, MM   |
-| `{day}`     | current day, DD     |
+Result on disk: `content/posts/2026/my-first-post.md`, copied from the
+archetype, with `title: "My first post"` filled into the frontmatter.
+If the archetype is a bundle, you get a directory
+`content/posts/2026/my-first-post/` with `index.md` (plus language
+siblings like `index.de.md` if the archetype has them).
 
 Umlauts and diacritics in titles are transliterated for the slug
-(`Über mich` → `ueber-mich`). The `title` field in the frontmatter
-keeps your original text. For multi-language bundles the title is
-written to every language file — translate them when you're ready.
+(`Über mich` → `ueber-mich`). The frontmatter `title` keeps your
+original text. For multi-language bundles the title is written to every
+language file — translate them when you're ready.
 
-To change a saved pattern: `:Hugo site` → *Edit archetype pattern*.
+The first time you use a given archetype you're prompted for its path
+pattern — see `:Hugo site pattern` above for how patterns work and how
+to change one later.
 
 ### `:Hugo open`
 
 Picker over every content page in your site. Each language version of
-a bundle is listed separately. Draft flag, language, and title are
-shown at a glance.
+a bundle is listed separately. Rows look like:
+
+```
+   --   posts/2026/hello                Hello world
+d  --   drafts/wip                      Work in progress
+   --   posts/2026/my-first-post        My first post
+   de   posts/2026/my-first-post        My first post
+```
+
+Columns, left to right: draft flag (`d` for drafts, blank otherwise),
+language, path inside `content/`, title. Enter opens the file.
+
+The language column reflects the filename suffix: `de` for `index.de.md`,
+`fr` for `index.fr.md`, and so on. `--` means the file has no language
+suffix (e.g. plain `index.md` or `hello.md`) — Hugo treats those as the
+site's **default language**. If your `defaultContentLanguage` is `en`,
+every `--` row is an English page.
 
 ### `:Hugo resume`
 
@@ -159,21 +229,30 @@ a phrase from the body.
 
 ### `:Hugo rename`
 
-Pick a page, type its new path. Bundles move as a directory, single-file
-pages as files. You can leave off the `.md` suffix.
+Pick a page, type its new path. Bundles move as a whole directory,
+single-file pages as files. You can leave off the `.md` suffix.
+
+Example: to rename `posts/2026/hello.md` to `posts/2026/hello-world.md`,
+type `posts/2026/hello-world` in the prompt. To move a post into a
+different section, include the new parent: `blog/2026/hello-world`.
 
 ### `:Hugo delete`
 
 Pick a page, confirm. If the page is part of a bundle, a second prompt
-asks whether to delete the whole bundle (all languages + resources) or
-just the selected language file — useful for retiring a translation
-without touching the rest.
+lets you choose the scope:
+
+- **Whole bundle** — removes the directory, all language files, and
+  any bundled resources (images etc. next to `index.md`).
+- **This language file only** — removes just `index.de.md` (or whichever
+  language you picked), leaving `index.md` and other translations
+  intact. Use this to retire a single translation.
 
 ### `:Hugo draft`
 
-Toggles the `draft` flag in the current buffer's frontmatter. For
-multi-language bundles, the flag is synced across all language files so
-drafts stay drafts everywhere.
+*Needs a content file open in the active buffer.* Toggles the `draft`
+flag in the current buffer's frontmatter. For multi-language bundles,
+the flag is synced across all language files so drafts stay drafts
+everywhere.
 
 ### `:Hugo media`
 
@@ -182,8 +261,10 @@ subcommands work directly too.
 
 - `import` copies a file from your disk into the site.
 - `insert` drops a reference (page link, image, attachment, shortcode)
-  into the current markdown.
-- `cover` sets the cover image in the frontmatter.
+  into the current markdown. *Needs a markdown file open in the active
+  buffer — that's what gets written into.*
+- `cover` sets the cover image in the frontmatter. *Needs any file
+  from the target bundle open.*
 - `rename` / `delete` work on files already in the site.
 
 #### `:Hugo media import`
@@ -198,32 +279,43 @@ you want a link in the markdown, run `:Hugo media insert` afterwards.
 
 #### `:Hugo media insert page`
 
-Pick another page from the site, insert `[Title]({{< relref "path" >}})`
-at the cursor. Hugo resolves the link at build time and picks the right
-language automatically.
+*Needs a markdown file open.* Pick another page from the site, insert
+`[Title]({{< relref "path" >}})` at the cursor. Hugo resolves the link
+at build time and picks the right language automatically.
 
 #### `:Hugo media insert image`
 
-Pick an image from the current bundle or `static/`, insert `![](path)`
-at the cursor.
+*Needs a markdown file open.* Pick an image from the current bundle
+or `static/`, insert `![](path)` at the cursor.
 
 #### `:Hugo media insert link`
 
-Pick any non-markdown file (PDFs, ZIPs, etc.), enter a link text,
-insert `[text](path)` at the cursor.
+*Needs a markdown file open.* Pick any non-markdown file (PDFs, ZIPs,
+etc.), enter a link text, insert `[text](path)` at the cursor.
 
 #### `:Hugo media insert shortcode`
 
-Pick a shortcode — your own, the theme's, or a Hugo built-in. The
-plugin reads the shortcode's template, prefills named parameters as
-empty strings, and lands the cursor at the first parameter (or inside
-the body for paired shortcodes).
+*Needs a markdown file open.* Pick a shortcode — your own from
+`layouts/shortcodes/`, the theme's, or a Hugo built-in. hugo-cms.nvim
+reads the shortcode's template, picks up its named parameters, and
+inserts them prefilled as empty strings.
+
+Example: inserting a `figure` shortcode with parameters `src`, `alt`,
+`caption` drops this at the cursor:
+
+```
+{{< figure src="" alt="" caption="" >}}
+```
+
+The cursor lands inside the first empty `""` so you can start typing.
+For paired shortcodes like `{{< quote >}}…{{< /quote >}}` the cursor
+lands inside the body instead.
 
 #### `:Hugo media cover`
 
-Set the cover image for the current bundle. Pick an image (same pool
-as `insert image`); it's written as `cover.image` across all language
-siblings.
+*Needs any file from the target bundle open.* Set the cover image for
+the current bundle. Pick an image (same pool as `insert image`); it's
+written as `cover.image` across all language siblings.
 
 If the frontmatter already has a `cover.alt` field, you're also
 prompted for alt text — it's written only to the current language.
@@ -240,14 +332,27 @@ scan afterwards tells you how many files still reference the old name.
 
 ### `:Hugo tags` / `:Hugo categories`
 
-Toggle tags (or categories) on the current page. The picker shows every
-value used across the site: the ones already set on this page are
+*Needs a content file open in the active buffer.* Toggle tags (or
+categories) on the current page. The picker shows every
+value used anywhere in the site: values already set on this page are
 marked `[x]` and floated to the top, the rest are `[ ]`. A
-`+ Create new…` entry lets you add a new value.
+`+ Create new…` entry at the bottom lets you add a value that doesn't
+exist yet.
 
-Enter toggles, the picker reopens so you can keep adding and removing.
-Press Esc when you're done. Your set is written to the frontmatter and
-synced across language siblings.
+Example picker view on a post that already has two tags:
+
+```
+[x] photography
+[x] travel
+[ ] food
+[ ] music
+[ ] neovim
+[ ] + Create new…
+```
+
+Enter toggles the selected row and reopens the picker, so you can keep
+adding and removing in one flow. Press Esc when you're done. Your set
+is written to the frontmatter and synced across language siblings.
 
 ### `:Hugo filebrowser`
 
@@ -281,6 +386,25 @@ server also shuts down when you quit Neovim. One preview at a time.
 Builds the site with `hugo` and, if the site root contains a
 `deploy.sh`, runs it afterwards. Output streams into a terminal split
 at the bottom.
+
+**Why a script, not a built-in uploader?** Deployment looks completely
+different from site to site — `rsync` to a VPS, `sftp` into shared
+hosting, `git push` to a provider that builds on their side, `aws s3
+sync`, Netlify CLI, whatever. Covering all of those natively would
+mean endless config knobs. A plain `deploy.sh` keeps it simple: you
+write whatever your host needs, hugo-cms.nvim just runs it after a
+successful build.
+
+Minimal example — rsync to a server:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+rsync -avz --delete public/ user@example.com:/var/www/mysite/
+```
+
+Make it executable (`chmod +x deploy.sh`) and put it at the site root
+next to `hugo.toml`.
 
 A confirmation prompt lists what will run and the working directory.
 Default answer is No — you have to pick Yes explicitly. If `hugo`

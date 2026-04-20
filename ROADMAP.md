@@ -44,7 +44,7 @@ necessarily be built.
 - **Archetype-aware completion / validation** — flag frontmatter
   fields that diverge from the archetype (missing required fields,
   unknown extra fields). Would need an explicit opt-in; Hugo is
-  flexible here and the plugin shouldn't override that by default.
+  flexible here and hugo-cms.nvim shouldn't override that by default.
 
 ## Infrastructure
 
@@ -64,12 +64,12 @@ contributor stepping up could change that.
 
 ## Not planned
 
-- **Hugo site scaffolding.** The plugin manages existing sites; it
+- **Hugo site scaffolding.** hugo-cms.nvim manages existing sites; it
   intentionally does not run `hugo new site`. One fewer thing to go
   wrong, and you only do it once per site anyway.
 
-- **Theme-specific frontmatter helpers.** The plugin is archetype-
+- **Theme-specific frontmatter helpers.** hugo-cms.nvim is archetype-
   driven by design — it only writes fields your archetype already
   defines. Adding "PaperMod cover support", "Anubis SEO helper" etc.
   would break that model. Themes can be served by user-defined
-  archetypes; the plugin should stay neutral.
+  archetypes; hugo-cms.nvim should stay neutral.
