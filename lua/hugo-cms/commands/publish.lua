@@ -1,10 +1,13 @@
--- `:Hugo publish` — build the active site with `hugo` and, if the site
--- has a `deploy.sh`, run it. Both steps stream into a terminal split at
--- the bottom so the build and deploy can be followed live.
+-- `:Hugo publish` — run the active site's `deploy.sh`. The script is
+-- responsible for the full build + deploy pipeline (typically `hugo
+-- --minify` followed by whatever upload step the host needs), which
+-- keeps hugo parameters and deploy transport entirely in the user's
+-- hands. Output streams into a terminal split at the bottom so
+-- progress can be followed live.
 --
--- Guarded by a confirmation prompt that spells out the exact commands
--- that will run. The two steps are chained via `sh -c "hugo && sh
--- deploy.sh"`, so if `hugo` fails, `deploy.sh` is not executed.
+-- Guarded by a confirmation prompt that names the script and the
+-- working directory. Aborts with an error if no `deploy.sh` exists at
+-- the site root.
 
 local M = {}
 
@@ -25,14 +28,18 @@ function M.run()
     return
   end
 
-  local has_deploy = file_exists(site.path .. "/deploy.sh")
-  local deploy_line = has_deploy
-    and "  -> sh deploy.sh"
-    or "  -> (no deploy.sh — skipping)"
+  if not file_exists(site.path .. "/deploy.sh") then
+    notify(
+      "no deploy.sh at " .. site.path .. " — create one that builds "
+        .. "and uploads the site (see :help hugo-cms-publish).",
+      vim.log.levels.ERROR
+    )
+    return
+  end
 
   local msg = string.format(
-    "Publish site '%s'?\n\n  -> hugo (build into public/)\n%s\n\nCwd: %s",
-    site.name, deploy_line, site.path
+    "Publish site '%s'?\n\n  -> sh deploy.sh\n\nCwd: %s",
+    site.name, site.path
   )
 
   local answer = vim.fn.confirm(msg, "&Yes\n&No", 2)
@@ -41,7 +48,7 @@ function M.run()
     return
   end
 
-  local shell_cmd = has_deploy and "hugo && sh deploy.sh" or "hugo"
+  local shell_cmd = "sh deploy.sh"
 
   -- Fresh scratch buffer in a bottom split becomes the terminal target.
   vim.cmd("botright 8new")

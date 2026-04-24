@@ -366,19 +366,40 @@ processes survive. One preview at a time per Neovim session.
 ------------------------------------------------------------------------------
 :Hugo publish                                                 *hugo-cms-publish*
 
-Builds the active site with `hugo` and, if the site root contains a
-`deploy.sh`, runs it. Both steps stream into a terminal split at the
-bottom so the build and deploy log are visible live.
+Runs `deploy.sh` at the active site's root. Output streams into a
+terminal split at the bottom so the build and upload log are visible
+live. If no `deploy.sh` exists, the command aborts with an error.
 
-A confirmation prompt opens first, listing the exact commands that
-will run (`hugo` and, when present, `sh deploy.sh`) and the working
+The script is responsible for BOTH the build and the upload —
+typically `hugo --minify` followed by whatever transport your host
+needs (rsync, sftp, rclone, aws s3 sync, git push, …). Keeping the
+build inside the script gives you full control over hugo flags
+without hugo-cms.nvim having to expose a config option for each.
+
+Example `deploy.sh` using `hugo --minify` and rclone:
+>
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "$(dirname "$0")"
+
+    hugo --minify
+
+    rclone copy public/ myremote:/example.com/httpdocs/ \
+      --exclude ".DS_Store" \
+      --progress
+<
+Swap the rclone remote / target for your own host. rclone works well
+for this (sftp, S3, WebDAV, … all behind the same interface), but
+any tool that can push `public/` to your host is fine — `rsync`,
+`aws s3 sync`, `scp`, `git push`, etc.
+
+Make the script executable (`chmod +x deploy.sh`) and place it at the
+site root next to `hugo.toml`.
+
+A confirmation prompt opens first, naming the script and the working
 directory. Default answer is No; press `y` / `1` or select Yes to
-proceed.
-
-If `hugo` exits non-zero, `deploy.sh` is NOT executed — the two steps
-are chained with `&&`. On success or failure a notify confirms the
-outcome; the terminal split stays open so the full log can be
-reviewed.
+proceed. On success or failure a notify confirms the outcome; the
+terminal split stays open so the full log can be reviewed.
 
 ==============================================================================
 5. KEYMAPS                                                   *hugo-cms-keymaps*

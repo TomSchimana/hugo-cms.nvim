@@ -82,7 +82,7 @@ available.
 | `:Hugo media`       | Import / insert / cover (bundle + static/images)|
 | `:Hugo filebrowser` | Open current folder in the system file manager  |
 | `:Hugo preview`     | Toggle `hugo server` + browser                  |
-| `:Hugo publish`     | Build + run `deploy.sh`                         |
+| `:Hugo publish`     | Run `deploy.sh` (build + upload)                |
 
 ## `:Hugo site`
 
@@ -383,32 +383,45 @@ server also shuts down when you quit Neovim. One preview at a time.
 
 ### `:Hugo publish`
 
-Builds the site with `hugo` and, if the site root contains a
-`deploy.sh`, runs it afterwards. Output streams into a terminal split
-at the bottom.
+Runs `deploy.sh` at the site root. Output streams into a terminal
+split at the bottom. If no `deploy.sh` exists, the command aborts with
+an error.
 
-**Why a script, not a built-in uploader?** Deployment looks completely
-different from site to site — `rsync` to a VPS, `sftp` into shared
-hosting, `git push` to a provider that builds on their side, `aws s3
-sync`, Netlify CLI, whatever. Covering all of those natively would
-mean endless config knobs. A plain `deploy.sh` keeps it simple: you
-write whatever your host needs, hugo-cms.nvim just runs it after a
-successful build.
+**Why a script, not a built-in build+uploader?** Deployment looks
+completely different from site to site — `rsync` to a VPS, `sftp` into
+shared hosting, `git push` to a provider that builds on their side,
+`aws s3 sync`, Netlify CLI, whatever. Covering all of those natively
+would mean endless config knobs. Keeping both the build call and the
+upload inside `deploy.sh` also means you get full control over the
+`hugo` flags you want (`--minify`, `--gc`, custom environments …)
+without hugo-cms.nvim growing options for each.
 
-Minimal example — rsync to a server:
+Example — `hugo --minify` + [rclone](https://rclone.org) to a remote
+named `schimana`:
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-rsync -avz --delete public/ user@example.com:/var/www/mysite/
+cd "$(dirname "$0")"
+
+hugo --minify
+
+rclone copy public/ schimana:/example.com/httpdocs/ \
+  --exclude ".DS_Store" \
+  --progress
 ```
 
-Make it executable (`chmod +x deploy.sh`) and put it at the site root
-next to `hugo.toml`.
+Swap the rclone remote / target for your own host. rclone happens to
+be a good fit (sftp, S3, Google Drive, WebDAV, … all behind the same
+interface), but any tool that can push `public/` to your host works
+just as well — `rsync`, `aws s3 sync`, `scp`, `git push`, a bash
+one-liner.
 
-A confirmation prompt lists what will run and the working directory.
-Default answer is No — you have to pick Yes explicitly. If `hugo`
-fails, `deploy.sh` doesn't run.
+Make the script executable (`chmod +x deploy.sh`) and put it at the
+site root next to `hugo.toml`.
+
+A confirmation prompt lists the script and the working directory.
+Default answer is No — you have to pick Yes explicitly.
 
 ## See also
 

@@ -7,6 +7,15 @@ pre-1.0 is allowed to break between minor versions.
 
 ## [Unreleased]
 
+### Changed
+
+- **`:Hugo publish`** no longer runs `hugo` itself — it now runs
+  `deploy.sh` directly. The script is responsible for both the build
+  and the upload. This gives full control over `hugo` flags
+  (`--minify`, `--gc`, custom environments …) and keeps deploy
+  transport entirely in the user's hands. If no `deploy.sh` exists,
+  the command aborts with an error instead of silently building.
+
 ## [0.1.0] — 2026-04-20
 
 First public release. Beta.
