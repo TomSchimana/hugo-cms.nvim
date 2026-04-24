@@ -7,14 +7,14 @@ pre-1.0 is allowed to break between minor versions.
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-04-24
+
 ### Changed
 
-- **`:Hugo publish`** no longer runs `hugo` itself — it now runs
-  `deploy.sh` directly. The script is responsible for both the build
-  and the upload. This gives full control over `hugo` flags
-  (`--minify`, `--gc`, custom environments …) and keeps deploy
-  transport entirely in the user's hands. If no `deploy.sh` exists,
-  the command aborts with an error instead of silently building.
+- `:Hugo publish` now runs `deploy.sh` directly instead of running
+  `hugo` first and then `deploy.sh`. Keeps control over hugo flags
+  (`--minify`, `--gc`, custom environments …) inside the script.
+  Aborts with an error if no `deploy.sh` exists at the site root.
 
 ## [0.1.0] — 2026-04-20
 
@@ -72,5 +72,6 @@ First public release. Beta.
   them.
 - JSON frontmatter is readable but not supported for writes.
 
-[Unreleased]: https://github.com/TomSchimana/hugo-cms.nvim/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/TomSchimana/hugo-cms.nvim/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/TomSchimana/hugo-cms.nvim/compare/v0.1.0...v0.1.2
 [0.1.0]: https://github.com/TomSchimana/hugo-cms.nvim/releases/tag/v0.1.0
