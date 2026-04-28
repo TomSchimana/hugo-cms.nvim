@@ -8,6 +8,10 @@ editor to poke around in the filesystem or a terminal.
 > but the API may still change before v1.0. See [CHANGELOG.md](CHANGELOG.md)
 > for release notes and [ROADMAP.md](ROADMAP.md) for what's next.
 
+> **Walkthrough:** I'm writing a blog series with deeper explanations
+> and use cases —
+> [overview](https://schimana.net/en/blog/2026/hugo-cms-nvim-uebersicht/).
+
 ## Requirements
 
 - Neovim 0.10 or newer

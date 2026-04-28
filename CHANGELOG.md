@@ -5,8 +5,6 @@ All notable changes to this project. Format loosely follows
 follows semantic versioning, with the understanding that anything
 pre-1.0 is allowed to break between minor versions.
 
-## [Unreleased]
-
 ## [0.1.2] — 2026-04-24
 
 ### Changed
@@ -72,6 +70,5 @@ First public release. Beta.
   them.
 - JSON frontmatter is readable but not supported for writes.
 
-[Unreleased]: https://github.com/TomSchimana/hugo-cms.nvim/compare/v0.1.2...HEAD
 [0.1.2]: https://github.com/TomSchimana/hugo-cms.nvim/compare/v0.1.0...v0.1.2
 [0.1.0]: https://github.com/TomSchimana/hugo-cms.nvim/releases/tag/v0.1.0
