@@ -431,6 +431,7 @@ Default answer is No — you have to pick Yes explicitly.
 
 - [CHANGELOG.md](CHANGELOG.md) — release notes
 - [ROADMAP.md](ROADMAP.md) — planned work
+- [Blog series](https://schimana.net/en/blog/2026/hugo-cms-nvim-uebersicht/) — deeper walkthroughs and use cases
 
 ## License
 
